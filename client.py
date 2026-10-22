@@ -10,110 +10,110 @@
 import socket
 import json
 
-PORTA = 5000
+PORT = 5000
 
 
-def comunicar(ip_servidor, solicitacao):
-    """Envia uma solicitação TCP e recebe a resposta JSON."""
+def communicate(server_ip, request):
+    """Send a TCP request and receive a JSON response."""
     try:
-        with socket.create_connection((ip_servidor, PORTA), timeout=5) as cliente:
-            mensagem = json.dumps(solicitacao, ensure_ascii=False) + "\n"
-            cliente.sendall(mensagem.encode("utf-8"))
+        with socket.create_connection((server_ip, PORT), timeout=5) as client:
+            message = json.dumps(request, ensure_ascii=False) + "\n"
+            client.sendall(message.encode("utf-8"))
 
-            with cliente.makefile("r", encoding="utf-8", newline="\n") as entrada:
-                linha = entrada.readline()
+            with client.makefile("r", encoding="utf-8", newline="\n") as input_file:
+                line = input_file.readline()
 
-            if not linha:
-                print("O servidor encerrou a conexão sem responder.")
+            if not line:
+                print("The server closed the connection without responding.")
                 return None
 
-            return json.loads(linha)
+            return json.loads(line)
 
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as erro:
-        print(f"Não foi possível concluir a comunicação: {erro}")
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        print(f"Communication could not be completed: {error}")
         return None
 
 
-def mostrar_menu():
-    print("\n===== SISTEMA DE ATENDIMENTO =====")
-    print("1 - Retirar senha")
-    print("2 - Consultar fila")
-    print("3 - Chamar próxima senha")
-    print("4 - Sair")
-    return input("Escolha uma opção: ").strip()
+def show_menu():
+    print("\n===== TICKET SERVICE SYSTEM =====")
+    print("1 - Request a ticket")
+    print("2 - Check the queue")
+    print("3 - Call the next ticket")
+    print("4 - Exit")
+    return input("Choose an option: ").strip()
 
 
-def executar():
-    ip_servidor = input(
-        "Informe o IP do servidor (ex.: 127.0.0.1): "
+def run():
+    server_ip = input(
+        "Enter the server IP address (e.g. 127.0.0.1): "
     ).strip()
 
-    if not ip_servidor:
-        print("O IP do servidor não pode estar vazio.")
+    if not server_ip:
+        print("The server IP address cannot be empty.")
         return
 
     while True:
-        opcao = mostrar_menu()
+        option = show_menu()
 
-        if opcao == "1":
-            nome = input("Nome completo: ").strip()
-            if not nome:
-                print("O nome não pode estar vazio.")
+        if option == "1":
+            name = input("Full name: ").strip()
+            if not name:
+                print("The name cannot be empty.")
                 continue
 
-            resposta = comunicar(ip_servidor, {
-                "acao": "retirar_senha",
-                "nome": nome
+            response = communicate(server_ip, {
+                "action": "request_ticket",
+                "name": name
             })
 
-            if resposta is not None:
-                if resposta.get("sucesso"):
-                    print(f"\nSenha emitida: {resposta['senha']}")
-                    print(f"Nome: {resposta['nome']}")
+            if response is not None:
+                if response.get("success"):
+                    print(f"\nTicket issued: {response['ticket']}")
+                    print(f"Name: {response['name']}")
                 else:
-                    print(resposta.get("mensagem", "Operação não realizada."))
+                    print(response.get("message", "Operation could not be completed."))
 
-        elif opcao == "2":
-            resposta = comunicar(ip_servidor, {"acao": "consultar_fila"})
+        elif option == "2":
+            response = communicate(server_ip, {"action": "check_queue"})
 
-            if resposta is not None:
-                if not resposta.get("sucesso"):
-                    print(resposta.get("mensagem", "Erro na consulta."))
+            if response is not None:
+                if not response.get("success"):
+                    print(response.get("message", "Queue query failed."))
                     continue
 
-                pessoas = resposta.get("fila", [])
-                print("\n===== FILA DE ESPERA =====")
+                people = response.get("queue", [])
+                print("\n===== WAITING QUEUE =====")
 
-                if pessoas:
-                    for pessoa in pessoas:
-                        print(f"Senha {pessoa['senha']} - {pessoa['nome']}")
+                if people:
+                    for person in people:
+                        print(f"Ticket {person['ticket']} - {person['name']}")
                 else:
-                    print("A fila está vazia.")
+                    print("The queue is empty.")
 
-                print(f"Total de pessoas aguardando: {resposta['quantidade']}")
+                print(f"Total people waiting: {response['quantity']}")
 
-        elif opcao == "3":
-            resposta = comunicar(ip_servidor, {"acao": "chamar_proxima"})
+        elif option == "3":
+            response = communicate(server_ip, {"action": "call_next"})
 
-            if resposta is not None:
-                if resposta.get("sucesso"):
+            if response is not None:
+                if response.get("success"):
                     print(
-                        f"\nChamando senha {resposta['senha']} - "
-                        f"{resposta['nome']}"
+                        f"\nCalling ticket {response['ticket']} - "
+                        f"{response['name']}"
                     )
                 else:
-                    print(resposta.get("mensagem", "Não foi possível chamar."))
+                    print(response.get("message", "Ticket could not be called."))
 
-        elif opcao == "4":
-            print("Cliente encerrado.")
+        elif option == "4":
+            print("Client closed.")
             break
 
         else:
-            print("Opção inválida. Escolha uma opção de 1 a 4.")
+            print("Invalid option. Choose an option from 1 to 4.")
 
 
 if __name__ == "__main__":
     try:
-        executar()
+        run()
     except (KeyboardInterrupt, EOFError):
-        print("\nCliente encerrado.")
+        print("\nClient closed.")

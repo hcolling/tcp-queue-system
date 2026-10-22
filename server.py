@@ -11,119 +11,119 @@ import socket
 import json
 
 HOST = "0.0.0.0"
-PORTA = 5000
+PORT = 5000
 
-# Fila única de atendimento, mantida em memória.
-fila = []
-proxima_senha = 1
+# Single service queue stored in memory.
+queue = []
+next_ticket = 1
 
 
-def processar_solicitacao(solicitacao):
-    """Processa uma solicitação recebida e devolve uma resposta."""
-    global proxima_senha
+def process_request(request):
+    """Process a received request and return a response."""
+    global next_ticket
 
-    acao = solicitacao.get("acao")
+    action = request.get("action")
 
-    if acao == "retirar_senha":
-        nome = solicitacao.get("nome", "")
+    if action == "request_ticket":
+        name = request.get("name", "")
 
-        if not isinstance(nome, str) or not nome.strip():
+        if not isinstance(name, str) or not name.strip():
             return {
-                "sucesso": False,
-                "mensagem": "O nome não pode estar vazio."
+                "success": False,
+                "message": "The name cannot be empty."
             }
 
-        # O número é definido exclusivamente pelo servidor.
-        pessoa = {"senha": proxima_senha, "nome": nome.strip()}
-        fila.append(pessoa)
-        proxima_senha += 1
+        # The ticket number is defined exclusively by the server.
+        person = {"ticket": next_ticket, "name": name.strip()}
+        queue.append(person)
+        next_ticket += 1
 
         return {
-            "sucesso": True,
-            "mensagem": "Senha emitida com sucesso.",
-            "senha": pessoa["senha"],
-            "nome": pessoa["nome"]
+            "success": True,
+            "message": "Ticket issued successfully.",
+            "ticket": person["ticket"],
+            "name": person["name"]
         }
 
-    if acao == "consultar_fila":
+    if action == "check_queue":
         return {
-            "sucesso": True,
-            "fila": list(fila),
-            "quantidade": len(fila)
+            "success": True,
+            "queue": list(queue),
+            "quantity": len(queue)
         }
 
-    if acao == "chamar_proxima":
-        if not fila:
+    if action == "call_next":
+        if not queue:
             return {
-                "sucesso": False,
-                "mensagem": "Não há pessoas aguardando atendimento."
+                "success": False,
+                "message": "There are no people waiting for service."
             }
 
-        # FIFO: remove a primeira pessoa que entrou na fila.
-        pessoa = fila.pop(0)
+        # FIFO: remove the first person who entered the queue.
+        person = queue.pop(0)
         return {
-            "sucesso": True,
-            "mensagem": "Pessoa chamada para atendimento.",
-            "senha": pessoa["senha"],
-            "nome": pessoa["nome"]
+            "success": True,
+            "message": "Person called for service.",
+            "ticket": person["ticket"],
+            "name": person["name"]
         }
 
-    return {"sucesso": False, "mensagem": "Operação inválida."}
+    return {"success": False, "message": "Invalid operation."}
 
 
-def iniciar_servidor():
-    """Cria o socket TCP e atende uma conexão por vez."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as servidor:
-        servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        servidor.bind((HOST, PORTA))
-        servidor.listen()
+def start_server():
+    """Create the TCP socket and handle one connection at a time."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((HOST, PORT))
+        server.listen()
 
-        print(f"Servidor iniciado na porta {PORTA}.")
-        print("Aguardando conexões...\n")
+        print(f"Server started on port {PORT}.")
+        print("Waiting for connections...\n")
 
         while True:
-            conexao, endereco = servidor.accept()
+            connection, address = server.accept()
 
-            with conexao:
+            with connection:
                 try:
-                    with conexao.makefile("r", encoding="utf-8", newline="\n") as entrada:
-                        linha = entrada.readline()
+                    with connection.makefile("r", encoding="utf-8", newline="\n") as input_file:
+                        line = input_file.readline()
 
-                    if not linha:
-                        print(f"{endereco}: conexão encerrada sem mensagem.")
+                    if not line:
+                        print(f"{address}: connection closed without a message.")
                         continue
 
                     try:
-                        solicitacao = json.loads(linha)
+                        request = json.loads(line)
                     except json.JSONDecodeError:
-                        solicitacao = None
-                        resposta = {
-                            "sucesso": False,
-                            "mensagem": "Mensagem JSON inválida."
+                        request = None
+                        response = {
+                            "success": False,
+                            "message": "Invalid JSON message."
                         }
                     else:
-                        if not isinstance(solicitacao, dict):
-                            resposta = {
-                                "sucesso": False,
-                                "mensagem": "A solicitação deve ser um objeto JSON."
+                        if not isinstance(request, dict):
+                            response = {
+                                "success": False,
+                                "message": "The request must be a JSON object."
                             }
                         else:
-                            print(f"Cliente {endereco}")
-                            print("Solicitação:", solicitacao)
-                            resposta = processar_solicitacao(solicitacao)
+                            print(f"Client {address}")
+                            print("Request:", request)
+                            response = process_request(request)
 
-                    mensagem = json.dumps(resposta, ensure_ascii=False) + "\n"
-                    conexao.sendall(mensagem.encode("utf-8"))
+                    message = json.dumps(response, ensure_ascii=False) + "\n"
+                    connection.sendall(message.encode("utf-8"))
 
-                    print("Resposta:", resposta)
+                    print("Response:", response)
                     print("-" * 50)
 
-                except (OSError, UnicodeDecodeError) as erro:
-                    print(f"Erro ao atender {endereco}: {erro}")
+                except (OSError, UnicodeDecodeError) as error:
+                    print(f"Error handling {address}: {error}")
 
 
 if __name__ == "__main__":
     try:
-        iniciar_servidor()
+        start_server()
     except KeyboardInterrupt:
-        print("\nServidor encerrado.")
+        print("\nServer closed.")
